@@ -6,7 +6,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch 
 from huggingface_hub import login
 from transformers import pipeline
-
 login(token="token")
 
 """ Given a recipe, get an embedding that describes it for search """
@@ -34,7 +33,7 @@ def get_recipe_context(recipe):
 
 """ Given a model and dataset of recipes, save the recipes' IDs, 
     context texts, and indexed search vectors (embeddings) """
-def save_embeddings(model, recipes_path="data/formatted_recipes.json"): 
+def save_embeddings(model, recipes_path, context_path, ids_path, faiss_idx_path): 
     
     with open(recipes_path) as f:
         recipes = json.load(f)
@@ -52,12 +51,12 @@ def save_embeddings(model, recipes_path="data/formatted_recipes.json"):
     emb_matrix = np.array(search_vecs).astype("float32")
     index = faiss.IndexFlatL2(emb_matrix.shape[1])  # 384 dimensions
     index.add(emb_matrix)
-    faiss.write_index(index, "recipe_index.faiss")
+    faiss.write_index(index, faiss_idx_path)
 
-    with open("data/context_texts.json", "w") as f:
+    with open(context_path, "w") as f:
         json.dump(context_texts, f)
 
-    with open("data/recipe_ids.json", "w") as f:
+    with open(ids_path, "w") as f:
         json.dump(recipe_ids, f)
 
 def get_top_recipes(model, user_query): 
@@ -68,8 +67,6 @@ def get_top_recipes(model, user_query):
 
     with open("data/context_texts.json") as f: 
         context_texts = json.load(f) 
-    with open("data/formatted_recipes.json") as f: 
-        recipes = json.load(f) 
 
     top_contexts = []
     for i in I[0]: 
@@ -95,42 +92,15 @@ def create_prompt(user_query, top_contexts):
 
 if __name__ == '__main__': 
 
-    model_name = "mistralai/Mistral-7B-Instruct-v0.3"
-    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
-    model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        device_map={"": "cpu"},
-        torch_dtype=torch.float32  # Don't use float16 on CPU
-    )
+    embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+    recipes_path = 'data/food.com/formatted_recipes.json'
+    context_path = 'data/food.com/context_texts.json'
+    ids_path = 'data/food.com/recipe_ids.json'
+    faiss_idx_path = 'data/food.com/recipe_index.faiss'
+    save_embeddings(embedding_model, recipes_path, context_path, ids_path, faiss_idx_path)
 
-    prompt = """<s>[INST] I'd like something with mushrooms - what do you recommend? [/INST]"""
-
-    inputs = tokenizer(prompt, return_tensors="pt")
-
-    output = model.generate(
-        **inputs,
-        max_new_tokens=150,
-        do_sample=True,
-        top_p=0.9,
-        temperature=0.7,
-        repetition_penalty=1.1
-    )
-
-    print(tokenizer.decode(output[0], skip_special_tokens=True))
-
-    # emb_model = SentenceTransformer("all-MiniLM-L6-v2")
-    # user_query = "I want something with mushrooms. What do you recommend?"
-    
-    # top_recipes = get_top_recipes(emb_model, user_query)
-    
-    # prompt = create_prompt(user_query, top_recipes)
-    # print(prompt)
-
-    # model_name = "mistralai/Mistral-7B-Instruct-v0.2"
-
-    # tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-    # # Force CPU and use float32 to avoid mixed precision issues
+    # model_name = "mistralai/Mistral-7B-Instruct-v0.3"
+    # tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
     # model = AutoModelForCausalLM.from_pretrained(
     #     model_name,
     #     device_map={"": "cpu"},
@@ -141,26 +111,13 @@ if __name__ == '__main__':
 
     # inputs = tokenizer(prompt, return_tensors="pt")
 
-    # tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    # llm = AutoModelForCausalLM.from_pretrained("gpt2")
-
-    # tokenizer.pad_token = tokenizer.eos_token 
-    # llm.config.pad_token_id = tokenizer.eos_token_id
-
-    # inputs = tokenizer(prompt, return_tensors="pt")
-    # output = llm.generate(
-    #     **inputs, 
-    #     max_new_tokens = 150, 
-    #     do_sample=True, 
-    #     temperature=0.8, 
-    #     top_p = 0.9, 
-    #     top_k=50,
-    #     repetition_penalty=1.2,
-    #     pad_token_id = tokenizer.eos_token_id
+    # output = model.generate(
+    #     **inputs,
+    #     max_new_tokens=150,
+    #     do_sample=True,
+    #     top_p=0.9,
+    #     temperature=0.7,
+    #     repetition_penalty=1.1
     # )
 
-    # generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-    # chatbot_response = generated_text[len(prompt):].strip()
-
-    # print("Chatbot response: \n")
-    # print(chatbot_response)
+    # print(tokenizer.decode(output[0], skip_special_tokens=True))

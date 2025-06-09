@@ -3,9 +3,9 @@ import json
 import isodate 
 
 """ Cut down recipe df (if desired) and get number of and avg rating(s) """
-def get_slim_data(nrecipes=None): 
+def get_slim_data(recipe_path, nrecipes=None): 
 
-    recipes = pd.read_parquet("data/recipes.parquet", engine="pyarrow")
+    recipes = pd.read_parquet(recipe_path, engine="pyarrow")
 
     print(f"Number of recipes: {recipes.shape}")
     print("Recipe dataset columns: ")
@@ -65,14 +65,17 @@ def iso_duration_to_hours(iso_duration):
     return total_seconds / 3600
 
 if __name__ == '__main__': 
-    recipes = get_slim_data(10000)
-
+    read_path = 'data/food.com/recipes.parquet'
+    write_path = 'data/food.com/formatted_recipes.json'
+    
+    
+    recipes = get_slim_data(read_path, 10000)
     ex = get_json_row(recipes.iloc[0])
     print("Example row: ", ex)
 
     recipe_docs = [get_json_row(row) for _, row in recipes.iterrows()]
 
-    with open("data/formatted_recipes.json", "w") as f:
+    with open(write_path, "w") as f:
         json.dump(recipe_docs, f)
 
 
