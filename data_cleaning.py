@@ -65,7 +65,7 @@ def iso_duration_to_hours(iso_duration):
     return total_seconds / 3600
 
 if __name__ == '__main__': 
-    recipes = get_slim_data(500)
+    recipes = get_slim_data(10000)
 
     ex = get_json_row(recipes.iloc[0])
     print("Example row: ", ex)

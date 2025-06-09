@@ -6,6 +6,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch 
 from huggingface_hub import login
 from transformers import pipeline
+
 login(token="token")
 
 """ Given a recipe, get an embedding that describes it for search """
