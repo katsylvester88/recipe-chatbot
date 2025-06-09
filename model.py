@@ -4,6 +4,9 @@ from sentence_transformers import SentenceTransformer
 import faiss 
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch 
+from huggingface_hub import login
+from transformers import pipeline
+login(token="token")
 
 """ Given a recipe, get an embedding that describes it for search """
 def get_recipe_emb(recipe, model):
@@ -91,34 +94,72 @@ def create_prompt(user_query, top_contexts):
 
 if __name__ == '__main__': 
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
-    user_query = "I want something with mushrooms. What do you recommend?"
-    
-    top_recipes = get_top_recipes(model, user_query)
-    
-    prompt = create_prompt(user_query, top_recipes)
-    print(prompt)
-
-    tokenizer = AutoTokenizer.from_pretrained("gpt2")
-    llm = AutoModelForCausalLM.from_pretrained("gpt2")
-
-    tokenizer.pad_token = tokenizer.eos_token 
-    llm.config.pad_token_id = tokenizer.eos_token_id
-
-    inputs = tokenizer(prompt, return_tensors="pt")
-    output = llm.generate(
-        **inputs, 
-        max_new_tokens = 150, 
-        do_sample=True, 
-        temperature=0.8, 
-        top_p = 0.9, 
-        top_k=50,
-        repetition_penalty=1.2,
-        pad_token_id = tokenizer.eos_token_id
+    model_name = "mistralai/Mistral-7B-Instruct-v0.3"
+    tokenizer = AutoTokenizer.from_pretrained("mistralai/Mistral-7B-Instruct-v0.3")
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name,
+        device_map={"": "cpu"},
+        torch_dtype=torch.float32  # Don't use float16 on CPU
     )
 
-    generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
-    chatbot_response = generated_text[len(prompt):].strip()
+    prompt = """<s>[INST] I'd like something with mushrooms - what do you recommend? [/INST]"""
 
-    print("Chatbot response: \n")
-    print(chatbot_response)
+    inputs = tokenizer(prompt, return_tensors="pt")
+
+    output = model.generate(
+        **inputs,
+        max_new_tokens=150,
+        do_sample=True,
+        top_p=0.9,
+        temperature=0.7,
+        repetition_penalty=1.1
+    )
+
+    print(tokenizer.decode(output[0], skip_special_tokens=True))
+
+    # emb_model = SentenceTransformer("all-MiniLM-L6-v2")
+    # user_query = "I want something with mushrooms. What do you recommend?"
+    
+    # top_recipes = get_top_recipes(emb_model, user_query)
+    
+    # prompt = create_prompt(user_query, top_recipes)
+    # print(prompt)
+
+    # model_name = "mistralai/Mistral-7B-Instruct-v0.2"
+
+    # tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+    # # Force CPU and use float32 to avoid mixed precision issues
+    # model = AutoModelForCausalLM.from_pretrained(
+    #     model_name,
+    #     device_map={"": "cpu"},
+    #     torch_dtype=torch.float32  # Don't use float16 on CPU
+    # )
+
+    # prompt = """<s>[INST] I'd like something with mushrooms - what do you recommend? [/INST]"""
+
+    # inputs = tokenizer(prompt, return_tensors="pt")
+
+    # tokenizer = AutoTokenizer.from_pretrained("gpt2")
+    # llm = AutoModelForCausalLM.from_pretrained("gpt2")
+
+    # tokenizer.pad_token = tokenizer.eos_token 
+    # llm.config.pad_token_id = tokenizer.eos_token_id
+
+    # inputs = tokenizer(prompt, return_tensors="pt")
+    # output = llm.generate(
+    #     **inputs, 
+    #     max_new_tokens = 150, 
+    #     do_sample=True, 
+    #     temperature=0.8, 
+    #     top_p = 0.9, 
+    #     top_k=50,
+    #     repetition_penalty=1.2,
+    #     pad_token_id = tokenizer.eos_token_id
+    # )
+
+    # generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
+    # chatbot_response = generated_text[len(prompt):].strip()
+
+    # print("Chatbot response: \n")
+    # print(chatbot_response)
