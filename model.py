@@ -6,30 +6,61 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import torch 
 from huggingface_hub import login
 from transformers import pipeline
-login(token="token")
+import os
+login(token=os.environ.get('hf_token'))
 
 """ Given a recipe, get an embedding that describes it for search """
-def get_recipe_emb(recipe, model):
-    title = recipe["title"]
-    category = recipe.get("category", "")
-    tags = ", ".join(recipe["tags"]) if recipe["tags"][0] else "" # some recipes don't have tags
-    desc = recipe.get("description", "")
-    ingredients = ", ".join(recipe["ingredients"])
+def get_recipe_emb(recipe, model, mode='foodnetwork'):
+    if mode == 'foodcom': 
+        title = recipe["title"]
+        category = recipe.get("category", "")
+        tags = ", ".join(recipe["tags"]) if recipe["tags"][0] else "" # some recipes don't have tags
+        desc = recipe.get("description", "")
+        ingredients = ", ".join(recipe["ingredients"])
 
-    search_text = f"{title} - {category} - {tags} - {desc} - {ingredients}"
+        search_text = f"{title} - {category} - {tags} - {desc} - {ingredients}"
+
+    elif mode == 'foodnetwork':
+        title = recipe["title"]
+        desc = recipe["description"]
+        level = recipe["level"]
+        ingredients = recipe["ingredients"]
+
+        search_text = f"{title} - {desc} - {level} - {ingredients}"
+
+    else: 
+        print('Unsupported mode')
+        return 
+    
     return model.encode(search_text) 
 
 """ Given a recipe, get the context that will be returned if chosen by RAG """
-def get_recipe_context(recipe): 
+def get_recipe_context(recipe, mode='foodnetwork'): 
 
-    title = recipe["title"]
-    tags = ", ".join(recipe["tags"]) if recipe["tags"][0] else ""
-    desc = recipe.get("description", "")
-    ingredients = ", ".join(recipe["ingredients"])
-    steps = ", ".join(recipe["steps"])
-
-    return f"Title: {title}\nDescription: {desc}\
+    if mode == 'foodcom': 
+        title = recipe["title"]
+        tags = ", ".join(recipe["tags"]) if recipe["tags"][0] else ""
+        desc = recipe.get("description", "")
+        ingredients = ", ".join(recipe["ingredients"])
+        steps = ", ".join(recipe["steps"])
+        context_text = f"Title: {title}\nDescription: {desc}\
         \nTags: {tags}\nIngredients: {ingredients}\nSteps: {steps}"
+
+    elif mode == 'foodnetwork': 
+        title = recipe["title"]
+        desc = recipe["description"]
+        level = recipe["level"]
+        ingredients = recipe["ingredients"]
+        directions = recipe["directions"]
+        url = recipe["url"]
+        context_text = f"Title: {title}\nDescription: {desc}\nLevel: {level}\
+        \nIngredients: {ingredients}\nDirections: {directions}\nURL: {url}"
+
+    else: 
+        print("Unsupported mode")
+        return 
+
+    return context_text
 
 """ Given a model and dataset of recipes, save the recipes' IDs, 
     context texts, and indexed search vectors (embeddings) """
@@ -59,13 +90,13 @@ def save_embeddings(model, recipes_path, context_path, ids_path, faiss_idx_path)
     with open(ids_path, "w") as f:
         json.dump(recipe_ids, f)
 
-def get_top_recipes(model, user_query): 
+def get_top_recipes(model, user_query, faiss_idx_path, context_path): 
     encoded_query = model.encode([user_query]) 
 
-    index = faiss.read_index("recipe_index.faiss")
+    index = faiss.read_index(faiss_idx_path)
     D, I = index.search(np.array(encoded_query, dtype="float32"), k=3)
 
-    with open("data/context_texts.json") as f: 
+    with open(context_path) as f: 
         context_texts = json.load(f) 
 
     top_contexts = []
@@ -93,10 +124,10 @@ def create_prompt(user_query, top_contexts):
 if __name__ == '__main__': 
 
     embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-    recipes_path = 'data/food.com/formatted_recipes.json'
-    context_path = 'data/food.com/context_texts.json'
-    ids_path = 'data/food.com/recipe_ids.json'
-    faiss_idx_path = 'data/food.com/recipe_index.faiss'
+    recipes_path = 'data/foodnetwork/formatted_recipes.json'
+    context_path = 'data/foodnetwork/context_texts.json'
+    ids_path = 'data/foodnetwork/recipe_ids.json'
+    faiss_idx_path = 'data/foodnetwork/recipe_index.faiss'
     save_embeddings(embedding_model, recipes_path, context_path, ids_path, faiss_idx_path)
 
     # model_name = "mistralai/Mistral-7B-Instruct-v0.3"
